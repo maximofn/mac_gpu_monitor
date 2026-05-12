@@ -6,9 +6,9 @@ import ImageIO
 import UniformTypeIdentifiers
 
 // Mirror of the gpu-monitor-tray macOS renderer, adapted for the Apple
-// Silicon GPU schema: only one GPU per snapshot, donut shows utilization %,
-// the label shows temperature when reported (or memory % otherwise — Apple
-// Silicon doesn't expose CPU/GPU thermal sensors on every chip).
+// Silicon GPU schema: only one GPU per snapshot, donut shows memory %,
+// the label shows temperature (or " -ºC" when the chip — e.g. plain M1/M2 —
+// doesn't expose a GPU thermal sensor).
 enum IconAppearance: Sendable {
     case dark
     case light
@@ -49,15 +49,15 @@ private func textSize(forHeight h: CGFloat) -> CGFloat {
     return max(8, min(16, raw))
 }
 
-/// Label shown to the left of the donut. Prefer temperature (matches the
-/// CPU tray); fall back to memory pressure when the chip doesn't expose
-/// a GPU thermal sensor — that's the case on plain M1 / M2 today.
+/// Label shown to the left of the donut: GPU temperature. Apple Silicon
+/// chips that don't expose a GPU thermal sensor (plain M1 / M2) render
+/// " -ºC" instead — the donut still carries memory % so the slot is useful.
 private func sideLabel(for gpu: GPU?) -> String {
-    guard let g = gpu else { return "( -ºC)" }
+    guard let g = gpu else { return " -ºC" }
     if let t = g.temperatureC {
-        return String(format: "(%2dºC)", Int(t))
+        return String(format: "%2dºC", Int(t))
     }
-    return String(format: "(%2d%%M)", Int(g.utilization.memoryPercent))
+    return " -ºC"
 }
 
 struct IconRenderer {
@@ -152,8 +152,8 @@ struct IconRenderer {
 
     private func layout(gpu: GPU?, scale: CGFloat, connected: Bool, appearance: IconAppearance) -> Layout {
         let textPx = textSize(forHeight: height)
-        // Worst case is 6 mono-digit chars: "(00ºC)" or "(99%M)".
-        let probeWidth = measureText("(00%M)", size: textPx)
+        // Worst case is 4 mono-digit chars: "00ºC".
+        let probeWidth = measureText("00ºC", size: textPx)
         let donutSize = max(8, height - donutPadding * 2)
         let iconW: CGFloat = baseIcon.map { CGFloat($0.width) / scale } ?? 0
 
@@ -237,7 +237,7 @@ struct IconRenderer {
         )
 
         let donutX = x + layout.iconWidth + 2 + layout.textWidth + 2
-        let usedPct = Float(max(0, min(100, gpu.utilization.gpuPercent)))
+        let usedPct = Float(max(0, min(100, gpu.utilization.memoryPercent)))
         drawDonut(
             ctx: ctx,
             x: donutX,

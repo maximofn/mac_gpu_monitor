@@ -115,8 +115,14 @@ impl MacmonGpuAdapter {
     pub fn sample(&mut self) -> GpuSample {
         match self.sampler.get_metrics(self.duration_ms) {
             Ok(m) => GpuSample {
+                // Prefer the dedicated GPU sensor when present (Pro/Max/Ultra
+                // dies expose it). Plain M1/M2 report `gpu_temp_avg == 0`, so
+                // fall back to the CPU thermal sensor: it lives on the same
+                // unified SoC die and is the closest physical proxy.
                 temperature_c: if m.temp.gpu_temp_avg > 0.0 {
                     Some(m.temp.gpu_temp_avg.round() as u32)
+                } else if m.temp.cpu_temp_avg > 0.0 {
+                    Some(m.temp.cpu_temp_avg.round() as u32)
                 } else {
                     None
                 },
